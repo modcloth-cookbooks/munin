@@ -1,0 +1,88 @@
+#!/opt/local/bin/ruby193 -W0
+#
+# Copyright (C) Ben Marini
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+# Magic markers (Used by munin-config and some installation scripts.
+# Optional):
+#%# family=auto
+#%# capabilities=autoconf
+
+class SmSummary
+  def initialize
+    @data = `/opt/local/bin/sm-summary`
+  end
+
+  def real
+    number_value_for "Memory (RSS) Cap"
+  end
+
+  def memused
+    number_value_for "Memory (RSS) Used"
+  end
+
+  def swapt
+    number_value_for "Swap Cap"
+  end
+
+  def swapu
+    number_value_for "Swap Used"
+  end
+
+  def number_value_for(label)
+    pattern = Regexp.new( Regexp.escape(label) + '\s+(\d+)' )
+    @data[pattern, 1]
+  end
+end
+
+case ARGV[0]
+when 'autoconf'
+  exit(0)
+when 'config'
+  puts "graph_title Memory usage (in MB)"
+  puts 'graph_category system'
+  puts "real.label Physical mem"
+  puts "used.label Mem used"
+  puts "swapt.label Total swap"
+  puts "swapu.label Swap used"
+  exit(0)
+else
+  summary = SmSummary.new
+
+  puts "real.value %s"  % summary.real
+  puts "used.value %s"  % summary.memused
+  puts "swapt.value %s" % summary.swapt
+  puts "swapu.value %s" % summary.swapu
+end
+
+__END__
+# Sample output from sm-summary
+* Gathering SmartMachine summary..
+SM UUID             1262eb8d-1fb9-4ab0-add9-db357b30f73d
+SM ID               48
+Hostname            18-app-plaid-ecomm.prod.modcloth.com
+SmartOS build       joyent_20120718T044524Z 
+Dataset             base 1.7.2
+Pkgsrc              http://pkgsrc.joyent.com/sdc6/2012Q1/x86_64/All
+Processes           53
+Memory (RSS) Cap    8192M
+Memory (RSS) Used   5550M
+Memory (RSS) Free   2642M
+Swap Cap            16384M
+Swap Used           5536M
+/tmp Used           172K
+Disk Quota          241G
+% Disk Used         4%
