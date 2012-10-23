@@ -1,0 +1,92 @@
+#!/opt/local/bin/ruby193 -W0
+#
+# Copyright (C) Ben Marini
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+#
+#
+# This plugin monitors a SOLR server.
+#
+# Parameters:
+#   config   (required)
+#   autoconf (optional - used by munin-config)
+#
+# Example of symlink creation on SmartOS
+#   ln -s /opt/local/share/munin/plugins/solr_ /opt/local/etc/munin/plugins/solr_qps
+#
+# Magic markers (Used by munin-config and some installation scripts.
+# Optional):
+#%# family=auto
+#%# capabilities=autoconf
+
+require 'open-uri'
+require 'nokogiri'
+
+SOLR_HOST = ENV['SOLR_HOST'] || '127.0.0.1'
+SOLR_PORT = ENV['SOLR_PORT'] || '8983'
+graph_key = File.basename($0)[/solr_(\w+)/, 1] || 'qps'
+
+class Graph < Struct.new(:label, :class_name, :stat_name)
+
+  def value
+    url     = "http://%s:%d/solr/admin/stats.jsp?wt=xml" % [ SOLR_HOST, SOLR_PORT ]
+    entries = fetch_entries(url, 'solr-info queryhandler entry')
+    entry   = find_entry(entries, class_name)
+
+    find_stat(entry, self.stat_name)
+  end
+
+  def find_stat(entry, name)
+    entry.css("stats stat[name=#{name}]").first.content.strip
+  end
+
+  def find_entry(entries, name)
+    entries.find do |entry|
+      entry.css('class').first.content.strip == name &&
+      entry.css('name').first.content.strip == 'standard'
+    end
+  end
+
+  def fetch_entries(url, selector)
+    xml = open(url).read.downcase
+    doc = Nokogiri::XML( xml )
+    doc.css(selector)
+  end
+end
+
+graphs  = {
+  'qps' => Graph.new('Avg. Requests Per Second', 'org.apache.solr.handler.component.searchhandler', 'avgrequestspersecond'),
+  'tpr' => Graph.new('Avg. Time Per Request', 'org.apache.solr.handler.component.searchhandler', 'avgtimeperrequest')
+}
+
+graph = graphs[graph_key]
+
+case ARGV[0]
+when 'autoconf'
+  exit(0)
+when 'config'
+  # Extracting Generic graph datas
+  puts 'graph_title %s' % graph.label
+  puts "graph_args --base 1000";
+  # puts 'graph_vlabel Size %s' % params['valueName']
+  puts 'graph_category Solr'
+
+  puts "%s.label %s" % [ graph_key, graph_key ]
+  puts "%s.type GAUGE" % graph_key
+  puts "%s.min 0" % graph_key
+  exit(0)
+else
+  puts "%s.value %s" % [ graph_key, graph.value ]
+end
