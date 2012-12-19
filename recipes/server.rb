@@ -35,6 +35,7 @@ include_recipe "munin::client"
 
 sysadmins = search(:users, 'groups:sysadmin')
 munin_servers = search(:node, "munin:[* TO *] AND chef_environment:#{node.chef_environment}")
+
 if munin_servers.empty?
   Chef::Log.info("No nodes returned from search, using this node so munin configuration has data")
   munin_servers = Array.new
@@ -42,6 +43,14 @@ if munin_servers.empty?
 end
 
 munin_servers.sort! { |a,b| a[:fqdn] <=> b[:fqdn] }
+
+munin_nodes = data_bag_item('munin_nodes', "#{node.chef_environment}")
+munin_nodes['nodes'].sort! { |a,b| a[:hostname] <=> b[:hostname] }
+Chef::Log.info("found munin nodes for #{munin_nodes['nodes']}")
+# munin_nodes['nodes'].sort! { |a,b| a[:fqdn] <=> b[:fqdn] }.each do |n| 
+#   Chef::Log.info("adding munin node #{n}")
+#   munin_servers << n
+# end
 
 if node[:public_domain]
   case node.chef_environment
@@ -88,7 +97,10 @@ end
 template "#{node['munin']['basedir']}/munin.conf" do
   source "munin.conf.erb"
   mode 0644
-  variables(:munin_nodes => munin_servers, :docroot => node['munin']['docroot'])
+  variables(
+    :munin_servers => munin_servers,
+    :munin_nodes => munin_nodes['nodes'], 
+    :docroot => node['munin']['docroot'])
 end
 
 case node['munin']['server_auth_method']
@@ -114,5 +126,6 @@ directory node['munin']['docroot'] do
   owner "munin"
   group "munin"
   mode 0755
+  recursive true
 end
 
