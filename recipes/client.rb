@@ -19,6 +19,11 @@
 
 munin_servers = search(:node, "role:#{node['munin']['server_role']} AND chef_environment:#{node.chef_environment}")
 
+# if set, use monitor server via ip
+if node['munin']['server_by_ip']
+  munin_servers << { :ipaddress => node['munin']['server_by_ip'] }
+end
+
 package "munin-node"
 
 service_name = node['munin']['service_name']
