@@ -44,9 +44,11 @@ end
 
 munin_servers.sort! { |a,b| a[:fqdn] <=> b[:fqdn] }
 
-munin_nodes = data_bag_item('munin_nodes', "#{node.chef_environment}")
-munin_nodes['nodes'].sort! { |a,b| a[:hostname] <=> b[:hostname] }
-Chef::Log.info("found munin nodes for #{munin_nodes['nodes']}")
+# munin_nodes = data_bag_item('munin_nodes', "#{node.chef_environment}")
+search_nodes = search('munin_nodes', '*:*')
+munin_nodes = search_nodes.map { |item| item['nodes'] }.flatten.sort_by { |n| n['hostname'] }
+# munin_nodes['nodes'].sort! { |a,b| a['hostname'] <=> b['hostname'] }
+Chef::Log.info("found munin nodes for #{munin_nodes}")
 # munin_nodes['nodes'].sort! { |a,b| a[:fqdn] <=> b[:fqdn] }.each do |n| 
 #   Chef::Log.info("adding munin node #{n}")
 #   munin_servers << n
@@ -99,7 +101,7 @@ template "#{node['munin']['basedir']}/munin.conf" do
   mode 0644
   variables(
     :munin_servers => munin_servers,
-    :munin_nodes => munin_nodes['nodes'], 
+    :munin_nodes => munin_nodes, 
     :docroot => node['munin']['docroot'])
 end
 
